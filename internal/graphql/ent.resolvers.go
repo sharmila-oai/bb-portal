@@ -154,7 +154,10 @@ func (r *queryResolver) Nodes(ctx context.Context, ids []string) ([]ent.Noder, e
 // FindBazelInvocations is the resolver for the findBazelInvocations field.
 func (r *queryResolver) FindBazelInvocations(ctx context.Context, after *entgql.Cursor[int64], first *int, before *entgql.Cursor[int64], last *int, orderBy *ent.BazelInvocationOrder, where *ent.BazelInvocationWhereInput) (*ent.BazelInvocationConnection, error) {
 	helpers.PaginationCursorsToUTC(after, before)
-	return r.client.BazelInvocation.Query().Paginate(ctx, after, first, before, last, ent.WithBazelInvocationFilter(where.Filter), ent.WithBazelInvocationOrder(orderBy))
+	query := r.client.BazelInvocation.Query().
+		WithAuthenticatedUser().
+		WithBuild()
+	return query.Paginate(ctx, after, first, before, last, ent.WithBazelInvocationFilter(where.Filter), ent.WithBazelInvocationOrder(orderBy))
 }
 
 // FindBuilds is the resolver for the findBuilds field.
