@@ -15,19 +15,32 @@ func StringSliceArrayToPointerArray(strings []string) []*string {
 	return result
 }
 
+func normalizeCursorValueToUTC(value any) any {
+	switch v := value.(type) {
+	case time.Time:
+		return v.UTC()
+	case *time.Time:
+		if v == nil {
+			return v
+		}
+		ut := v.UTC()
+		return &ut
+	case []any:
+		values := make([]any, len(v))
+		for i, item := range v {
+			values[i] = normalizeCursorValueToUTC(item)
+		}
+		return values
+	default:
+		return value
+	}
+}
+
 func paginationCursorToUTC(cursor *entgql.Cursor[int64]) {
 	if cursor == nil || cursor.Value == nil {
 		return
 	}
-	switch v := cursor.Value.(type) {
-	case time.Time:
-		cursor.Value = v.UTC()
-	case *time.Time:
-		if v != nil {
-			ut := v.UTC()
-			cursor.Value = &ut
-		}
-	}
+	cursor.Value = normalizeCursorValueToUTC(cursor.Value)
 }
 
 // PaginationCursorsToUTC converts pagination cursors that consist of

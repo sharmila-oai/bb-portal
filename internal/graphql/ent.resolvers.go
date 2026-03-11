@@ -10,6 +10,7 @@ import (
 
 	"entgo.io/contrib/entgql"
 	"github.com/buildbarn/bb-portal/ent/gen/ent"
+	"github.com/buildbarn/bb-portal/ent/gen/ent/bazelinvocation"
 	"github.com/buildbarn/bb-portal/internal/graphql/helpers"
 )
 
@@ -154,7 +155,77 @@ func (r *queryResolver) Nodes(ctx context.Context, ids []string) ([]ent.Noder, e
 // FindBazelInvocations is the resolver for the findBazelInvocations field.
 func (r *queryResolver) FindBazelInvocations(ctx context.Context, after *entgql.Cursor[int64], first *int, before *entgql.Cursor[int64], last *int, orderBy *ent.BazelInvocationOrder, where *ent.BazelInvocationWhereInput) (*ent.BazelInvocationConnection, error) {
 	helpers.PaginationCursorsToUTC(after, before)
-	return r.client.BazelInvocation.Query().Paginate(ctx, after, first, before, last, ent.WithBazelInvocationFilter(where.Filter), ent.WithBazelInvocationOrder(orderBy))
+	if err := validateSeekPagination(first, last); err != nil {
+		return nil, err
+	}
+	if err := validateFindBazelInvocationsOrder(orderBy); err != nil {
+		return nil, err
+	}
+
+	query := r.client.BazelInvocation.Query().
+		Where(bazelinvocation.StartedAtNotNil())
+
+	var err error
+	if where != nil {
+		query, err = where.Filter(query)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if hasCollectedField(ctx, "edges", "node", "build") {
+		query.WithBuild()
+	}
+	if hasCollectedField(ctx, "edges", "node", "authenticatedUser") {
+		query.WithAuthenticatedUser()
+	}
+
+	var totalCount *int
+	if hasCollectedField(ctx, "totalCount") {
+		count, err := query.Clone().Count(ctx)
+		if err != nil {
+			return nil, err
+		}
+		totalCount = &count
+	}
+
+	if after != nil {
+		predicate, err := bazelInvocationCursorPredicate(after, entgql.OrderDirectionDesc)
+		if err != nil {
+			return nil, err
+		}
+		query.Where(predicate)
+	}
+	if before != nil {
+		predicate, err := bazelInvocationCursorPredicate(before, entgql.OrderDirectionAsc)
+		if err != nil {
+			return nil, err
+		}
+		query.Where(predicate)
+	}
+
+	if last != nil {
+		query.Order(
+			bazelinvocation.ByStartedAt(entgql.OrderDirectionAsc.OrderTermOption()),
+			bazelinvocation.ByID(entgql.OrderDirectionAsc.OrderTermOption()),
+		)
+		query.Limit(*last + 1)
+	} else {
+		query.Order(
+			bazelinvocation.ByStartedAt(entgql.OrderDirectionDesc.OrderTermOption()),
+			bazelinvocation.ByID(entgql.OrderDirectionDesc.OrderTermOption()),
+		)
+		if first != nil {
+			query.Limit(*first + 1)
+		}
+	}
+
+	nodes, err := query.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return buildBazelInvocationConnection(nodes, after, before, first, last, totalCount), nil
 }
 
 // FindBuilds is the resolver for the findBuilds field.

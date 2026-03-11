@@ -37,6 +37,7 @@ require (
 	github.com/klauspost/compress v1.18.3
 	github.com/lib/pq v1.10.9
 	github.com/machinebox/graphql v0.2.2
+	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/rs/cors v1.11.1

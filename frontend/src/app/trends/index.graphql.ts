@@ -13,7 +13,6 @@ const FIND_BUILD_DURATIONS = gql(/* GraphQL */ `
         hasPreviousPage
 
       }
-      totalCount
       edges {
         node {
           invocationID

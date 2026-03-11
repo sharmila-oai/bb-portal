@@ -95,7 +95,7 @@ const PageContent: React.FC = () => {
                             titleBits={[<span key="invocation-durations">Invocation Durations</span>]}>
                             <Row>
                                 <Space size="large">
-                                    <Statistic title="Total" value={data?.findBazelInvocations.totalCount} valueStyle={{ color: "#82ca9d" }} />
+                                    <Statistic title="Shown" value={dataSource.length} valueStyle={{ color: "#82ca9d" }} />
                                     <Statistic title="Average" value={dataPoints.length == 0 ? "-" : readableDurationFromMilliseconds(avg, {smallestUnit: "ms"})} valueStyle={{ color: "#82ca9d" }} />
                                     <Statistic title="Median" value={dataPoints.length == 0 ? "-" : readableDurationFromMilliseconds(median, {smallestUnit: "ms"})} valueStyle={{ color: "#8884d8" }} />
                                     <Statistic title="Max" value={dataPoints.length == 0 ? "-" : readableDurationFromMilliseconds(max, {smallestUnit: "ms"})} />
