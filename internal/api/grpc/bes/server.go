@@ -34,6 +34,10 @@ type BuildEventServer struct {
 	buildEventRecorderFactory buildEventRecorderFactory
 }
 
+func shouldStoreIncompleteProgressLogs(configuration *bb_portal.BuildEventStreamService) bool {
+	return configuration.StoreIncompleteProgressLogs == nil || configuration.GetStoreIncompleteProgressLogs()
+}
+
 // NewBuildEventServer creates a new BuildEventServer
 func NewBuildEventServer(db database.Client, configuration *bb_portal.ApplicationConfiguration, dependenciesGroup program.Group, grpcClientFactory bb_grpc.ClientFactory, tracerProvider trace.TracerProvider, uuidGenerator util.UUIDGenerator) (*BuildEventServer, error) {
 	if configuration.InstanceNameAuthorizer == nil {
@@ -53,6 +57,7 @@ func NewBuildEventServer(db database.Client, configuration *bb_portal.Applicatio
 	if saveDataLevel == nil || saveDataLevel.Level == nil {
 		return nil, fmt.Errorf("No saveDataLevel configured")
 	}
+	storeIncompleteProgressLogs := shouldStoreIncompleteProgressLogs(besConfiguration)
 
 	extractors, err := authmetadataextraction.AuthMetadataExtractorsFromConfiguration(besConfiguration.AuthMetadataKeyConfiguration, dependenciesGroup)
 	if err != nil {
@@ -66,6 +71,7 @@ func NewBuildEventServer(db database.Client, configuration *bb_portal.Applicatio
 				db,
 				instanceNameAuthorizer,
 				saveDataLevel,
+				storeIncompleteProgressLogs,
 				tracerProvider,
 				instanceName,
 				invocationID,

@@ -66,8 +66,10 @@ func (r *buildEventRecorder) saveProgressBatch(ctx context.Context, batch []Buil
 		}
 	}
 
-	if err = tx.Sqlc().CreateIncompleteBuildLogs(ctx, params); err != nil {
-		return util.StatusWrap(err, "Failed to bulk insert incomplete build logs")
+	if r.storeIncompleteProgressLogs && len(params.SnippetIds) > 0 {
+		if err = tx.Sqlc().CreateIncompleteBuildLogs(ctx, params); err != nil {
+			return util.StatusWrap(err, "Failed to bulk insert incomplete build logs")
+		}
 	}
 
 	if err := r.saveHandledEventsForBatch(ctx, batch, tx); err != nil {

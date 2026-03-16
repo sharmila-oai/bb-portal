@@ -111,6 +111,13 @@ message BuildEventStreamService {
   // Controls what data should be saved to the database.
   SaveDataLevel save_data_level = 7;
 
+  // Whether progress-event log snippets should be written into
+  // incomplete_build_logs before they are compacted into chunked logs.
+  //
+  // If unset, this defaults to true to preserve the existing behavior.
+  // Set this to false to disable incomplete log storage entirely.
+  optional bool store_incomplete_progress_logs = 11;
+
   message DatabaseCleanupConfiguration {
     // How often to run the cleanup job. 5% jitter will be applied to
     // avoid accidental synchronization with other instances.
@@ -128,6 +135,15 @@ message BuildEventStreamService {
     // either completed or considered abandoned.
     // Recommended value: '604800s' (i.e., 7 days)
     google.protobuf.Duration invocation_retention = 4;
+
+    // How long to retain incomplete_build_logs for completed or abandoned
+    // invocations before deleting them, independently of the rest of the
+    // invocation data.
+    //
+    // If unset, incomplete logs keep the existing behavior and are only
+    // deleted after they have been compacted into build_log_chunks or when
+    // the entire invocation is removed.
+    google.protobuf.Duration incomplete_invocation_log_retention = 5;
   }
 
   // Configuration for the internal database cleanup service. This is a

@@ -9,6 +9,7 @@ go_library(
         "lockinvocations.go",
         "next_slice.go",
         "remove_old_invocations.go",
+        "remove_expired_incomplete_logs.go",
         "remove_target_kind_mappings.go",
         "remove_unused_targets.go",
     ],

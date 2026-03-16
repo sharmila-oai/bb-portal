@@ -46,10 +46,15 @@ func TestMain(m *testing.M) {
 }
 
 func getNewDbCleanupService(db database.Client, clock clock.Clock, traceProvider trace.TracerProvider) (*dbcleanupservice.DbCleanupService, error) {
+	return getNewDbCleanupServiceWithIncompleteLogRetention(db, clock, traceProvider, nil)
+}
+
+func getNewDbCleanupServiceWithIncompleteLogRetention(db database.Client, clock clock.Clock, traceProvider trace.TracerProvider, incompleteLogRetention *durationpb.Duration) (*dbcleanupservice.DbCleanupService, error) {
 	cleanupConfiguration := &bb_portal.BuildEventStreamService_DatabaseCleanupConfiguration{
-		CleanupInterval:          durationpb.New(1 * time.Minute),
-		InvocationMessageTimeout: durationpb.New(30 * time.Second),
-		InvocationRetention:      durationpb.New(30 * time.Minute),
+		CleanupInterval:                  durationpb.New(1 * time.Minute),
+		InvocationMessageTimeout:         durationpb.New(30 * time.Second),
+		InvocationRetention:              durationpb.New(30 * time.Minute),
+		IncompleteInvocationLogRetention: incompleteLogRetention,
 	}
 	return dbcleanupservice.NewDbCleanupService(db, clock, cleanupConfiguration, traceProvider)
 }
@@ -195,6 +200,69 @@ func TestCompactLogs(t *testing.T) {
 		require.NoError(t, err)
 		requireIncompleteLogCount(t, client, 6)
 	})
+}
+
+func TestRemoveExpiredIncompleteLogs(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	ctx = dbauthservice.NewContextWithDbAuthServiceBypass(ctx)
+	clock := mock.NewMockClock(ctrl)
+	traceProvider := noop.NewTracerProvider()
+
+	db := testutils.SetupTestDB(t, dbProvider)
+	client := db.Ent()
+	instanceNameDbID := createInstanceName(t, ctx, client, "testInstance")
+	now := time.Now().UTC()
+
+	expiredInvocation, err := client.BazelInvocation.Create().
+		SetInvocationID(uuid.New()).
+		SetInstanceNameID(instanceNameDbID).
+		SetBepCompleted(true).
+		SetEndedAt(now.Add(-2 * time.Hour)).
+		Save(ctx)
+	require.NoError(t, err)
+	populateIncompleteBuildLog(t, ctx, client, expiredInvocation.ID)
+
+	retainedInvocation, err := client.BazelInvocation.Create().
+		SetInvocationID(uuid.New()).
+		SetInstanceNameID(instanceNameDbID).
+		SetBepCompleted(true).
+		SetEndedAt(now.Add(-15 * time.Minute)).
+		Save(ctx)
+	require.NoError(t, err)
+	populateIncompleteBuildLog(t, ctx, client, retainedInvocation.ID)
+
+	clock.EXPECT().Now().Return(now).AnyTimes()
+
+	cleanup, err := getNewDbCleanupServiceWithIncompleteLogRetention(
+		db,
+		clock,
+		traceProvider,
+		durationpb.New(1*time.Hour),
+	)
+	require.NoError(t, err)
+
+	err = cleanup.RemoveExpiredIncompleteLogs(ctx)
+	require.NoError(t, err)
+
+	count, err := client.IncompleteBuildLog.Query().Where(
+		incompletebuildlog.HasBazelInvocationWith(
+			bazelinvocation.IDEQ(expiredInvocation.ID),
+		),
+	).Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 0, count)
+
+	count, err = client.IncompleteBuildLog.Query().Where(
+		incompletebuildlog.HasBazelInvocationWith(
+			bazelinvocation.IDEQ(retainedInvocation.ID),
+		),
+	).Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 6, count)
+
+	invocationCount, err := client.BazelInvocation.Query().Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 2, invocationCount)
 }
 
 func TestRemoveBuildsWithoutInvocations(t *testing.T) {

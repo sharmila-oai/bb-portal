@@ -37,6 +37,7 @@ type DbCleanupService struct {
 	cleanupInterval          time.Duration
 	invocationMessageTimeout time.Duration
 	invocationRetention      time.Duration
+	incompleteLogRetention   *time.Duration
 	tracer                   trace.Tracer
 }
 
@@ -62,6 +63,15 @@ func NewDbCleanupService(
 		return nil, util.StatusWrap(err, "Failed to parse invocationRetention parameter time")
 	}
 
+	var incompleteLogRetention *time.Duration
+	if retention := cleanupConfiguration.IncompleteInvocationLogRetention; retention != nil {
+		if err := retention.CheckValid(); err != nil {
+			return nil, util.StatusWrap(err, "Failed to parse incompleteInvocationLogRetention parameter time")
+		}
+		duration := retention.AsDuration()
+		incompleteLogRetention = &duration
+	}
+
 	return &DbCleanupService{
 		db:                       db,
 		counter:                  rand.Int64N(65536),
@@ -69,6 +79,7 @@ func NewDbCleanupService(
 		cleanupInterval:          cleanupInterval.AsDuration(),
 		invocationMessageTimeout: invocationMessageTimeout.AsDuration(),
 		invocationRetention:      invocationRetention.AsDuration(),
+		incompleteLogRetention:   incompleteLogRetention,
 		tracer:                   tracerProvider.Tracer("github.com/buildbarn/bb-portal/internal/database/dbcleanupservice"),
 	}, nil
 }
@@ -98,6 +109,9 @@ func (dc *DbCleanupService) StartDbCleanupService(ctx context.Context, group pro
 				}
 				if err := dc.DeleteIncompleteLogs(ctx); err != nil {
 					slog.Warn("Failed to delete incomplete logs", "err", err)
+				}
+				if err := dc.RemoveExpiredIncompleteLogs(ctx); err != nil {
+					slog.Warn("Failed to remove expired incomplete logs", "err", err)
 				}
 				if err := dc.RemoveOldInvocations(ctx); err != nil {
 					slog.Warn("Failed to remove old invocations", "err", err)

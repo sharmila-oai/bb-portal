@@ -36,12 +36,13 @@ const (
 
 // BepUploader handles upload of Build Event Protocol files via HTTP.
 type BepUploader struct {
-	db                     database.Client
-	instanceNameAuthorizer auth.Authorizer
-	saveDataLevel          *bb_portal.BuildEventStreamService_SaveDataLevel
-	tracerProvider         trace.TracerProvider
-	extractors             *authmetadataextraction.AuthMetadataExtractors
-	uuidGenerator          util.UUIDGenerator
+	db                          database.Client
+	instanceNameAuthorizer      auth.Authorizer
+	saveDataLevel               *bb_portal.BuildEventStreamService_SaveDataLevel
+	storeIncompleteProgressLogs bool
+	tracerProvider              trace.TracerProvider
+	extractors                  *authmetadataextraction.AuthMetadataExtractors
+	uuidGenerator               util.UUIDGenerator
 }
 
 // NewBepUploader creates a new BepUploader
@@ -63,6 +64,7 @@ func NewBepUploader(db database.Client, configuration *bb_portal.ApplicationConf
 	if saveDataLevel == nil || saveDataLevel.Level == nil {
 		return nil, fmt.Errorf("No saveDataLevel configured")
 	}
+	storeIncompleteProgressLogs := besConfiguration.StoreIncompleteProgressLogs == nil || besConfiguration.GetStoreIncompleteProgressLogs()
 
 	extractors, err := authmetadataextraction.AuthMetadataExtractorsFromConfiguration(besConfiguration.AuthMetadataKeyConfiguration, dependenciesGroup)
 	if err != nil {
@@ -70,12 +72,13 @@ func NewBepUploader(db database.Client, configuration *bb_portal.ApplicationConf
 	}
 
 	return &BepUploader{
-		db:                     db,
-		instanceNameAuthorizer: instanceNameAuthorizer,
-		saveDataLevel:          saveDataLevel,
-		tracerProvider:         tracerProvider,
-		extractors:             extractors,
-		uuidGenerator:          uuidGenerator,
+		db:                          db,
+		instanceNameAuthorizer:      instanceNameAuthorizer,
+		saveDataLevel:               saveDataLevel,
+		storeIncompleteProgressLogs: storeIncompleteProgressLogs,
+		tracerProvider:              tracerProvider,
+		extractors:                  extractors,
+		uuidGenerator:               uuidGenerator,
 	}, nil
 }
 
@@ -140,6 +143,7 @@ func (b *BepUploader) RecordEventNdjsonFile(ctx context.Context, file io.Reader)
 				b.db,
 				b.instanceNameAuthorizer,
 				b.saveDataLevel,
+				b.storeIncompleteProgressLogs,
 				b.tracerProvider,
 				"", // instanceName
 				invocationID,

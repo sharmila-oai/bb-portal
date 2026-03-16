@@ -50,10 +50,11 @@ type BuildEventRecorder interface {
 }
 
 type buildEventRecorder struct {
-	db            database.Client
-	handledEvents handledEvents
-	saveDataLevel *bb_portal.BuildEventStreamService_SaveDataLevel
-	tracer        trace.Tracer
+	db                          database.Client
+	handledEvents               handledEvents
+	saveDataLevel               *bb_portal.BuildEventStreamService_SaveDataLevel
+	storeIncompleteProgressLogs bool
+	tracer                      trace.Tracer
 
 	InstanceName     string
 	InstanceNameDbID int64
@@ -74,6 +75,7 @@ func NewBuildEventRecorder(
 	db database.Client,
 	instanceNameAuthorizer auth.Authorizer,
 	saveDataLevel *bb_portal.BuildEventStreamService_SaveDataLevel,
+	storeIncompleteProgressLogs bool,
 	tracerProvider trace.TracerProvider,
 	instanceName string,
 	invocationID string,
@@ -101,9 +103,10 @@ func NewBuildEventRecorder(
 	}
 
 	return &buildEventRecorder{
-		db:            db,
-		saveDataLevel: saveDataLevel,
-		tracer:        tracer,
+		db:                          db,
+		saveDataLevel:               saveDataLevel,
+		storeIncompleteProgressLogs: storeIncompleteProgressLogs,
+		tracer:                      tracer,
 
 		InstanceName:     instanceName,
 		InstanceNameDbID: instanceNameDbID,
